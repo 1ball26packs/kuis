@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kuis Persahabatan</title>
+<script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
+<style>
+body{font-family: sans-serif;
+    text-align: center;
+    background: #fff8e1;
+    margin-top: 20px;
+    color: #333;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;}
+.box{max-width:400px;margin:auto;background:#fff;padding:20px;border-radius:12px;box-shadow:0 4px 10px rgba(0,0,0,.1)}
+input,button{padding:12px;margin:5px 0;border-radius:8px;border:1px solid #ddd;width:100%;box-sizing:border-box;font-size:16px;text-transform:uppercase}
+button{background:#f39c12;color:#fff;border:none;font-weight:bold;cursor:pointer}
+.hide{display:none!important}
+#modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);display:flex;justify-content:center;align-items:center}
+.m-box{background:#fff;padding:25px;border-radius:12px;text-align:center;width:80%;max-width:300px}
+.ok{color:#2ecc71} .no{color:#e74c3c}
+.btn-copy{background:#eee;color:#333;padding:8px 15px;font-size:14px;width:auto;margin-top:5px;text-transform:none}
+</style>
+</head>
+<body>
+<div class="box">
+    <h2>👯 Bestie Quiz 👯</h2>
+    <div id="setup">
+        <input id="nama" placeholder="Masukkan Namamu" style="text-transform:none">
+        <p style="margin-bottom:5px">Kode Kamu: <br><b id="myid" style="color:#f39c12;font-size:24px;letter-spacing:2px">Memuat...</b></p>
+        
+        <!-- Tombol Copy Baru -->
+        <button id="btn-copy" class="btn-copy" onclick="copyKode()">📋 Salin Kode</button>
+        
+        <hr style="border:0;border-top:1px solid #eee;margin:20px 0">
+        <input id="pid" placeholder="KODE TEMAN (Cth: KUIS-1234)">
+        <button onclick="gabung()">Mulai Main</button>
+    </div>
+    
+    <div id="game" class="hide">
+        <p style="background:#fef9e7;padding:5px;border-radius:10px;color:#f39c12;font-weight:bold">Skor: <span id="skor">0</span> / 10</p>
+        <h3 id="tanya" style="margin:20px 0;text-transform:none"></h3>
+        <button id="b1" onclick="jawab('Aku')" style="text-transform:none">Aku</button>
+        <button id="b2" onclick="jawab('Teman')" style="text-transform:none">Teman</button>
+        <p id="tunggu" class="hide" style="color:#888;font-size:14px;margin-top:15px;text-transform:none">Menunggu <span id="nama-teman">teman</span>...</p>
+    </div>
+</div>
+
+<div id="modal" class="hide">
+    <div class="m-box">
+        <h2 id="m-t" style="text-transform:none"></h2>
+        <p id="m-d" style="line-height:1.6;text-transform:none"></p>
+        <button onclick="lanjut()" style="text-transform:none">Lanjut</button>
+    </div>
+</div>
+
+<script>
+const randomKode = "KUIS-" + Math.floor(1000 + Math.random() * 9000);
+const peer = new Peer(randomKode);
+
+let conn, myAns, pAns = {}, skor = 0, q = 0, myName = "", pName = "Teman";
+const qs = ["Siapa yg sering ngaret?","Siapa yg jago mabar?","Siapa yg suka ngajak nongkrong malam?","Siapa yg paling update berita?","Siapa betah marathon film berjam-jam?","Siapa yg paling sering jadi tempat curhat?","Siapa yg ngide liburan berujung wacana?","Siapa yg paling paham gadget/IT?","Siapa yg paling lama bales chat?","Siapa yg sering traktir duluan?"];
+const $ = id => document.getElementById(id);
+
+peer.on('open', id => $('myid').innerText = id);
+peer.on('connection', c => { conn = c; conn.on('open', mulai); });
+
+// Fungsi untuk Copy Kode ke Clipboard
+function copyKode() {
+    let kode = $('myid').innerText;
+    if (kode === "Memuat...") return;
+    
+    navigator.clipboard.writeText(kode).then(() => {
+        let btn = $('btn-copy');
+        btn.innerText = "Tersalin! ✔️";
+        btn.style.background = "#d4edda"; // Warna hijau tipis
+        
+        // Kembalikan teks tombol setelah 2 detik
+        setTimeout(() => {
+            btn.innerText = "📋 Salin Kode";
+            btn.style.background = "#eee";
+        }, 2000);
+    }).catch(err => {
+        alert("Gagal menyalin kode. Silakan salin manual.");
+    });
+}
+
+function gabung() {
+    if(!$('nama').value || !$('pid').value) return alert('Isi nama & kode teman!');
+    $('myid').innerText = "Menghubungkan...";
+    let partnerId = $('pid').value.trim().toUpperCase();
+    conn = peer.connect(partnerId);
+    conn.on('open', mulai);
+}
+
+function mulai() {
+    myName = $('nama').value || "Aku";
+    $('setup').className = 'hide'; 
+    $('game').className = '';
+    conn.send({ type: 'nama', val: myName });
+    loadQ();
+    
+    conn.on('data', d => {
+        if (d.type === 'nama') { 
+            pName = d.val; 
+            $('nama-teman').innerText = pName; 
+            $('b2').innerText = pName;
+        }
+        if (d.type === 'jawab') { 
+            pAns[d.idx] = d.val; 
+            cek(); 
+        }
+    });
+}
+
+function loadQ() {
+    if (q >= qs.length) return $('game').innerHTML = `<h3>Selesai! Kecocokan: ${skor}/10</h3>`;
+    myAns = null; 
+    $('tunggu').className = 'hide';
+    $('b1').disabled = $('b2').disabled = false;
+    $('b1').style.opacity = $('b2').style.opacity = "1";
+    $('tanya').innerText = (q + 1) + ". " + qs[q];
+    $('b1').innerText = myName; 
+    cek();
+}
+
+function jawab(ans) {
+    myAns = ans; 
+    $('b1').disabled = $('b2').disabled = true;
+    $('b1').style.opacity = $('b2').style.opacity = "0.5";
+    $('tunggu').className = ''; 
+    conn.send({ type: 'jawab', val: ans, idx: q }); 
+    cek();
+}
+
+function cek() {
+    let pAn = pAns[q];
+    if (myAns && pAn) {
+        let match = ((myAns === 'Aku' && pAn === 'Teman') || (myAns === 'Teman' && pAn === 'Aku'));
+        if (match) { skor++; $('skor').innerText = skor; }
+        
+        $('m-t').innerText = match ? 'Satu Pemikiran! 🎯' : 'Beda Pendapat! 🤣';
+        $('m-t').className = match ? 'ok' : 'no';
+        
+        let txtMy = myAns === 'Aku' ? myName : pName;
+        let txtPn = pAn === 'Aku' ? pName : myName; 
+        
+        $('m-d').innerHTML = `<strong>${myName}</strong> milih:<br>${txtMy}<br><br><strong>${pName}</strong> milih:<br>${txtPn}`;
+        $('modal').className = '';
+    }
+}
+
+function lanjut() { $('modal').className = 'hide'; q++; loadQ(); }
+</script>
+</body>
+</html>
