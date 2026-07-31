@@ -2,39 +2,40 @@
 <html lang="id">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bestie Quiz Live</title>
+<title>Bestie Quiz Pro</title>
 <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
 <style>
 body{font-family:sans-serif;text-align:center;background:#fff8e1;padding:20px;color:#333}
 .box{max-width:400px;margin:auto;background:#fff;padding:20px;border-radius:15px;box-shadow:0 10px 20px rgba(0,0,0,.1)}
-input,button{padding:12px;margin:5px 0;border-radius:8px;border:1px solid #ddd;width:100%;box-sizing:border-box;font-size:16px}
-button{background:#f39c12;color:#fff;border:none;font-weight:bold;cursor:pointer}
-.timer{font-size:24px;color:#e74c3c;font-weight:bold}
+input,button{padding:12px;margin:5px 0;border-radius:8px;border:1px solid #ddd;width:100%;box-sizing:border-box;font-size:16px;text-transform:uppercase}
+button{background:#f39c12;color:#fff;border:none;font-weight:bold;cursor:pointer;text-transform:none}
+button:active{transform:scale(0.95)}
+.timer{font-size:30px;color:#e74c3c;font-weight:bold;margin:10px 0}
 .hide{display:none!important}
 </style>
 </head>
 <body>
 <div class="box">
-    <h2>👯 Bestie Quiz 👯</h2>
+    <h2>👯 Bestie Quiz Pro 👯</h2>
     <div id="setup">
-        <input id="nama" placeholder="Masukkan Namamu">
-        <p>Kode Host: <b id="myid">Memuat...</b></p>
-        <button onclick="navigator.clipboard.writeText($('myid').innerText)">📋 Salin Kode</button>
-        <hr><input id="pid" placeholder="KODE HOST">
+        <input id="nama" placeholder="Masukkan Namamu" style="text-transform:none">
+        <p>Kode Kamu: <br><b id="myid" style="color:#f39c12;font-size:24px;letter-spacing:2px">Memuat...</b></p>
+        <button id="btn-copy" onclick="copyKode()">📋 Salin Kode</button>
+        <hr><input id="pid" placeholder="KODE HOST (Cth: KUIS-1234)">
         <button onclick="main(false)">Mulai Main</button>
         <button onclick="main(true)" style="background:#3498db">Tonton Live (Spectator)</button>
     </div>
     
     <div id="game" class="hide">
         <div class="timer" id="timer">10</div>
-        <h3 id="tanya"></h3>
+        <h3 id="tanya" style="text-transform:none"></h3>
         <button id="b1" onclick="jawab('Aku')">Aku</button>
         <button id="b2" onclick="jawab('Teman')">Teman</button>
     </div>
 
     <div id="view" class="hide">
-        <h3>Mode Penonton</h3>
-        <p id="v-status">Menunggu data...</p>
+        <h3>👀 Mode Penonton</h3>
+        <p id="v-status">Menunggu permainan dimulai...</p>
         <h2 id="v-skor">Skor: 0</h2>
     </div>
 </div>
@@ -43,7 +44,7 @@ button{background:#f39c12;color:#fff;border:none;font-weight:bold;cursor:pointer
 const randomKode = "KUIS-" + Math.floor(1000 + Math.random() * 9000);
 const peer = new Peer(randomKode);
 let conn, myAns, pAns = {}, skor = 0, q = 0, myName = "", pName = "Teman", timer, spectators = [];
-const qs = ["Sering ngaret?","Jago mabar?","Suka nongkrong malam?","Update berita?","Marathon film?","Tempat curhat?","Ngide liburan wacana?","Paham gadget/IT?","Paling lama bales chat?","Sering traktir?"];
+const qs = ["Sering ngaret?","Jago mabar?","Suka nongkrong malam?","Update berita?","Marathon film?","Tempat curhat?","Ngide liburan wacana?","Paham gadget/IT?","Paling lama bales chat?","Sering traktir?"].sort(() => Math.random() - 0.5);
 const $ = id => document.getElementById(id);
 
 peer.on('open', id => $('myid').innerText = id);
@@ -52,8 +53,14 @@ peer.on('connection', c => {
     else { conn = c; conn.on('open', mulai); }
 });
 
+function copyKode() {
+    navigator.clipboard.writeText($('myid').innerText);
+    $('btn-copy').innerText = "Tersalin! ✔️";
+    setTimeout(() => $('btn-copy').innerText = "📋 Salin Kode", 2000);
+}
+
 function main(isViewer) {
-    if (!isViewer && !$('nama').value) return alert('Isi nama!');
+    if (!isViewer && !$('nama').value) return alert('Isi nama dulu!');
     let pid = $('pid').value.trim().toUpperCase();
     if (!pid) return alert('Masukkan kode host!');
     
@@ -81,7 +88,10 @@ function mulai() {
 }
 
 function loadQ() {
-    if (q >= qs.length) return $('game').innerHTML = `<h3>Selesai! Skor: ${skor}/10</h3>`;
+    if (q >= qs.length) {
+        let gelar = skor > 8 ? "Soulmates! 💖" : (skor > 4 ? "Bestie Sejati! 😎" : "Teman Biasa 🤣");
+        return $('game').innerHTML = `<h3>Kuis Selesai!</h3><p>Skor Akhir: <b>${skor}/10</b></p><h2>${gelar}</h2><button onclick="location.reload()">Main Lagi</button>`;
+    }
     myAns = null; startTimer();
     $('tanya').innerText = (q + 1) + ". " + qs[q];
     $('b1').innerText = myName; $('b1').disabled = $('b2').disabled = false;
@@ -89,8 +99,7 @@ function loadQ() {
 }
 
 function startTimer() {
-    let t = 10;
-    $('timer').innerText = t;
+    let t = 10; $('timer').innerText = t;
     timer = setInterval(() => {
         t--; $('timer').innerText = t;
         if(t <= 0) { clearInterval(timer); jawab(Math.random() > 0.5 ? 'Aku' : 'Teman'); }
@@ -108,9 +117,8 @@ function cek() {
     if (myAns && pAns[q]) {
         let match = ((myAns === 'Aku' && pAns[q] === 'Teman') || (myAns === 'Teman' && pAns[q] === 'Aku'));
         if (match) skor++;
-        // Kirim hasil ke spectator
         spectators.forEach(s => s.send({type:'res', myName, pName, myAns, pAns: pAns[q], skor}));
-        alert(match ? 'Cocok! 🎯' : 'Beda! 🤣');
+        alert(match ? 'Satu Pemikiran! 🎯' : 'Beda Pendapat! 🤣');
         q++; loadQ();
     }
 }
