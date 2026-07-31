@@ -2,157 +2,118 @@
 <html lang="id">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Kuis Persahabatan</title>
+<title>Bestie Quiz Live</title>
 <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
 <style>
-body{font-family: sans-serif;
-    text-align: center;
-    background: #fff8e1;
-    margin-top: 20px;
-    color: #333;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;}
-.box{max-width:400px;margin:auto;background:#fff;padding:20px;border-radius:12px;box-shadow:0 4px 10px rgba(0,0,0,.1)}
-input,button{padding:12px;margin:5px 0;border-radius:8px;border:1px solid #ddd;width:100%;box-sizing:border-box;font-size:16px;text-transform:uppercase}
+body{font-family:sans-serif;text-align:center;background:#fff8e1;padding:20px;color:#333}
+.box{max-width:400px;margin:auto;background:#fff;padding:20px;border-radius:15px;box-shadow:0 10px 20px rgba(0,0,0,.1)}
+input,button{padding:12px;margin:5px 0;border-radius:8px;border:1px solid #ddd;width:100%;box-sizing:border-box;font-size:16px}
 button{background:#f39c12;color:#fff;border:none;font-weight:bold;cursor:pointer}
+.timer{font-size:24px;color:#e74c3c;font-weight:bold}
 .hide{display:none!important}
-#modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);display:flex;justify-content:center;align-items:center}
-.m-box{background:#fff;padding:25px;border-radius:12px;text-align:center;width:80%;max-width:300px}
-.ok{color:#2ecc71} .no{color:#e74c3c}
-.btn-copy{background:#eee;color:#333;padding:8px 15px;font-size:14px;width:auto;margin-top:5px;text-transform:none}
 </style>
 </head>
 <body>
 <div class="box">
     <h2>👯 Bestie Quiz 👯</h2>
     <div id="setup">
-        <input id="nama" placeholder="Masukkan Namamu" style="text-transform:none">
-        <p style="margin-bottom:5px">Kode Kamu: <br><b id="myid" style="color:#f39c12;font-size:24px;letter-spacing:2px">Memuat...</b></p>
-        
-        <!-- Tombol Copy Baru -->
-        <button id="btn-copy" class="btn-copy" onclick="copyKode()">📋 Salin Kode</button>
-        
-        <hr style="border:0;border-top:1px solid #eee;margin:20px 0">
-        <input id="pid" placeholder="KODE TEMAN (Cth: KUIS-1234)">
-        <button onclick="gabung()">Mulai Main</button>
+        <input id="nama" placeholder="Masukkan Namamu">
+        <p>Kode Host: <b id="myid">Memuat...</b></p>
+        <button onclick="navigator.clipboard.writeText($('myid').innerText)">📋 Salin Kode</button>
+        <hr><input id="pid" placeholder="KODE HOST">
+        <button onclick="main(false)">Mulai Main</button>
+        <button onclick="main(true)" style="background:#3498db">Tonton Live (Spectator)</button>
     </div>
     
     <div id="game" class="hide">
-        <p style="background:#fef9e7;padding:5px;border-radius:10px;color:#f39c12;font-weight:bold">Skor: <span id="skor">0</span> / 10</p>
-        <h3 id="tanya" style="margin:20px 0;text-transform:none"></h3>
-        <button id="b1" onclick="jawab('Aku')" style="text-transform:none">Aku</button>
-        <button id="b2" onclick="jawab('Teman')" style="text-transform:none">Teman</button>
-        <p id="tunggu" class="hide" style="color:#888;font-size:14px;margin-top:15px;text-transform:none">Menunggu <span id="nama-teman">teman</span>...</p>
+        <div class="timer" id="timer">10</div>
+        <h3 id="tanya"></h3>
+        <button id="b1" onclick="jawab('Aku')">Aku</button>
+        <button id="b2" onclick="jawab('Teman')">Teman</button>
     </div>
-</div>
 
-<div id="modal" class="hide">
-    <div class="m-box">
-        <h2 id="m-t" style="text-transform:none"></h2>
-        <p id="m-d" style="line-height:1.6;text-transform:none"></p>
-        <button onclick="lanjut()" style="text-transform:none">Lanjut</button>
+    <div id="view" class="hide">
+        <h3>Mode Penonton</h3>
+        <p id="v-status">Menunggu data...</p>
+        <h2 id="v-skor">Skor: 0</h2>
     </div>
 </div>
 
 <script>
 const randomKode = "KUIS-" + Math.floor(1000 + Math.random() * 9000);
 const peer = new Peer(randomKode);
-
-let conn, myAns, pAns = {}, skor = 0, q = 0, myName = "", pName = "Teman";
-const qs = ["Siapa yg sering ngaret?","Siapa yg jago mabar?","Siapa yg suka ngajak nongkrong malam?","Siapa yg paling update berita?","Siapa betah marathon film berjam-jam?","Siapa yg paling sering jadi tempat curhat?","Siapa yg ngide liburan berujung wacana?","Siapa yg paling paham gadget/IT?","Siapa yg paling lama bales chat?","Siapa yg sering traktir duluan?"];
+let conn, myAns, pAns = {}, skor = 0, q = 0, myName = "", pName = "Teman", timer, spectators = [];
+const qs = ["Sering ngaret?","Jago mabar?","Suka nongkrong malam?","Update berita?","Marathon film?","Tempat curhat?","Ngide liburan wacana?","Paham gadget/IT?","Paling lama bales chat?","Sering traktir?"];
 const $ = id => document.getElementById(id);
 
 peer.on('open', id => $('myid').innerText = id);
-peer.on('connection', c => { conn = c; conn.on('open', mulai); });
+peer.on('connection', c => {
+    if (c.metadata === 'viewer') spectators.push(c);
+    else { conn = c; conn.on('open', mulai); }
+});
 
-// Fungsi untuk Copy Kode ke Clipboard
-function copyKode() {
-    let kode = $('myid').innerText;
-    if (kode === "Memuat...") return;
+function main(isViewer) {
+    if (!isViewer && !$('nama').value) return alert('Isi nama!');
+    let pid = $('pid').value.trim().toUpperCase();
+    if (!pid) return alert('Masukkan kode host!');
     
-    navigator.clipboard.writeText(kode).then(() => {
-        let btn = $('btn-copy');
-        btn.innerText = "Tersalin! ✔️";
-        btn.style.background = "#d4edda"; // Warna hijau tipis
-        
-        // Kembalikan teks tombol setelah 2 detik
-        setTimeout(() => {
-            btn.innerText = "📋 Salin Kode";
-            btn.style.background = "#eee";
-        }, 2000);
-    }).catch(err => {
-        alert("Gagal menyalin kode. Silakan salin manual.");
-    });
-}
-
-function gabung() {
-    if(!$('nama').value || !$('pid').value) return alert('Isi nama & kode teman!');
-    $('myid').innerText = "Menghubungkan...";
-    let partnerId = $('pid').value.trim().toUpperCase();
-    conn = peer.connect(partnerId);
-    conn.on('open', mulai);
+    conn = peer.connect(pid, { metadata: isViewer ? 'viewer' : 'player' });
+    if(isViewer) {
+        $('setup').className = 'hide'; $('view').className = '';
+        conn.on('data', d => {
+            if(d.type === 'res') {
+                $('v-status').innerText = `${d.myName} milih ${d.myAns} | ${d.pName} milih ${d.pAns}`;
+                $('v-skor').innerText = "Skor: " + d.skor;
+            }
+        });
+    } else conn.on('open', mulai);
 }
 
 function mulai() {
     myName = $('nama').value || "Aku";
-    $('setup').className = 'hide'; 
-    $('game').className = '';
+    $('setup').className = 'hide'; $('game').className = '';
     conn.send({ type: 'nama', val: myName });
     loadQ();
-    
     conn.on('data', d => {
-        if (d.type === 'nama') { 
-            pName = d.val; 
-            $('nama-teman').innerText = pName; 
-            $('b2').innerText = pName;
-        }
-        if (d.type === 'jawab') { 
-            pAns[d.idx] = d.val; 
-            cek(); 
-        }
+        if (d.type === 'nama') { pName = d.val; $('b2').innerText = pName; }
+        if (d.type === 'jawab') { pAns[d.idx] = d.val; cek(); }
     });
 }
 
 function loadQ() {
-    if (q >= qs.length) return $('game').innerHTML = `<h3>Selesai! Kecocokan: ${skor}/10</h3>`;
-    myAns = null; 
-    $('tunggu').className = 'hide';
-    $('b1').disabled = $('b2').disabled = false;
-    $('b1').style.opacity = $('b2').style.opacity = "1";
+    if (q >= qs.length) return $('game').innerHTML = `<h3>Selesai! Skor: ${skor}/10</h3>`;
+    myAns = null; startTimer();
     $('tanya').innerText = (q + 1) + ". " + qs[q];
-    $('b1').innerText = myName; 
+    $('b1').innerText = myName; $('b1').disabled = $('b2').disabled = false;
     cek();
 }
 
+function startTimer() {
+    let t = 10;
+    $('timer').innerText = t;
+    timer = setInterval(() => {
+        t--; $('timer').innerText = t;
+        if(t <= 0) { clearInterval(timer); jawab(Math.random() > 0.5 ? 'Aku' : 'Teman'); }
+    }, 1000);
+}
+
 function jawab(ans) {
-    myAns = ans; 
+    clearInterval(timer); myAns = ans; 
     $('b1').disabled = $('b2').disabled = true;
-    $('b1').style.opacity = $('b2').style.opacity = "0.5";
-    $('tunggu').className = ''; 
     conn.send({ type: 'jawab', val: ans, idx: q }); 
     cek();
 }
 
 function cek() {
-    let pAn = pAns[q];
-    if (myAns && pAn) {
-        let match = ((myAns === 'Aku' && pAn === 'Teman') || (myAns === 'Teman' && pAn === 'Aku'));
-        if (match) { skor++; $('skor').innerText = skor; }
-        
-        $('m-t').innerText = match ? 'Satu Pemikiran! 🎯' : 'Beda Pendapat! 🤣';
-        $('m-t').className = match ? 'ok' : 'no';
-        
-        let txtMy = myAns === 'Aku' ? myName : pName;
-        let txtPn = pAn === 'Aku' ? pName : myName; 
-        
-        $('m-d').innerHTML = `<strong>${myName}</strong> milih:<br>${txtMy}<br><br><strong>${pName}</strong> milih:<br>${txtPn}`;
-        $('modal').className = '';
+    if (myAns && pAns[q]) {
+        let match = ((myAns === 'Aku' && pAns[q] === 'Teman') || (myAns === 'Teman' && pAns[q] === 'Aku'));
+        if (match) skor++;
+        // Kirim hasil ke spectator
+        spectators.forEach(s => s.send({type:'res', myName, pName, myAns, pAns: pAns[q], skor}));
+        alert(match ? 'Cocok! 🎯' : 'Beda! 🤣');
+        q++; loadQ();
     }
 }
-
-function lanjut() { $('modal').className = 'hide'; q++; loadQ(); }
 </script>
 </body>
 </html>
